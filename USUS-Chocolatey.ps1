@@ -5,17 +5,18 @@
 	File Name		: USUS-Chocolatey.ps1
 	Author			: Jason Lorsung (jason@ususcript.com)
 	Last Update		: 2015-10-01
-	Version			: 1.0
+	Version			: 1.1
 .USAGE
 	USUS-Chocolatey.ps1 -SoftwareMasterFile "SoftwareMaster.xml" -IncludesDir "IncludesDir" -ChocolateyRepo "ChocolateyRepo"
 .FLAGS
 	-SoftwareMasterFile		Use this to specify your SoftwareMasterFile file for the script to use
 	-IncludesDir			Use this to specify where the script should get reqired items from (NuGet.exe)
 	-ChocolateyRepo			Use this to specify where the script should store the Chocolatey Packages
+	-ForcePackage			Use this to specify that the script should always generate a new Chocolatey Package
 	-DebugEnable			Use this to enable Debug output
 #>
 
-param([Parameter(Mandatory=$True)][string]$SoftwareMasterFile,[Parameter(Mandatory=$True)][string]$IncludesDir,[Parameter(Mandatory=$True)][string]$ChocolateyRepo)
+param([Parameter(Mandatory=$True)][string]$SoftwareMasterFile,[Parameter(Mandatory=$True)][string]$IncludesDir,[Parameter(Mandatory=$True)][string]$ChocolateyRepo,[switch]$ForcePackage,[switch]$DebugEnable)
 
 [string]$Timestamp = $(get-date -f "yyyy-MM-dd HH:mm")
 
@@ -27,7 +28,7 @@ Function ChocolateyPackage
 	
 	IF ($BitCount -eq 32 -Or $BitCount -eq 96)
 	{
-		IF ($Version32.Chocolatey)
+		IF ($Version32.Chocolatey -And (!($ForcePackage)))
 		{
 			IF (([datetime]$Version32.Chocolatey.Updated) -ge ([datetime]$Version32.Updated))
 			{
@@ -46,7 +47,7 @@ Function ChocolateyPackage
 	
 	IF ($BitCount -eq 64)
 	{
-		IF ($Version64.Chocolatey)
+		IF ($Version64.Chocolatey -And (!($ForcePackage)))
 		{
 			IF (([datetime]$Version64.Chocolatey.Updated) -ge ([datetime]$Version64.Updated))
 			{
@@ -287,8 +288,7 @@ IF ($alreadyInstalled)
 		} ELSE {
 			$Version64.Chocolatey.Updated = $Timestamp
 		}
-	}
-	
+	}	
 	$SoftwareMaster.Save($SoftwareMasterFile)
 	
 }
@@ -419,5 +419,16 @@ ForEach ($Software in $SoftwareMaster.SoftwarePackages.software)
 		{
 			ChocolateyPackage -Version64 $Version64 -PackageName $PackageName -HumanReadableName $HumanReadableName -Timestamp $Timestamp -IsMSI $IsMSI -BitCount 64 -ChocolateyRepo $ChocolateyRepo -SoftwareMaster $SoftwareMaster -SoftwareMasterFile $SoftwareMasterFile
 		}
-	}	
+	}
+
+	IF (!($Software.ChocolateyRepo))
+	{
+		$SoftwareChocoRepo = $SoftwareMaster.CreateElement("ChocolateyRepo")
+		$Software.AppendChild($SoftwareChocoRepo) | Out-Null
+		$SoftwareChocoRepo.InnerText = $ChocolateyRepo
+	} ELSE {
+		$Software.ChocolateyRepo = $ChocolateyRepo
+	}
+	
+	$SoftwareMaster.Save($SoftwareMasterFile)
 }
